@@ -1,8 +1,8 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { db } from "@/db";
 import { communityMembers, learningGoals, matches, users } from "@/db/schema";
-import { eq, and, sql, inArray, ne } from "drizzle-orm";
+import { eq, and, sql, inArray, ne, desc } from "drizzle-orm";
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const getCommunityMembers = async (communityId: string) => {};
 
 export const getGoalsByUserAndCommunity = async (
@@ -52,6 +52,51 @@ export const getUserMatchesInCommunity = async (
       ),
     );
 };
+
+/**
+ * Batch fetch users by their IDs
+ * Returns a Map of userId -> user for efficient lookup
+ */
+export async function getUsersByIds(
+  userIds: string[],
+): Promise<Map<string, typeof users.$inferSelect>> {
+  if (userIds.length === 0) return new Map();
+
+  const usersArray = await db
+    .select()
+    .from(users)
+    .where(inArray(users.id, userIds));
+
+  const usersMap = new Map<string, typeof users.$inferSelect>();
+  for (const user of usersArray) {
+    usersMap.set(user.id, user);
+  }
+
+  return usersMap;
+}
+
+/**
+ * Get all matches for a user across all communities
+ * Optionally filter by status
+ */
+export async function getUserMatches(
+  userId: string,
+  status?: "pending" | "accepted" | "rejected",
+) {
+  const conditions = [
+    sql`(${matches.user1Id} = ${userId} OR ${matches.user2Id} = ${userId})`,
+  ];
+
+  if (status) {
+    conditions.push(eq(matches.status, status));
+  }
+
+  return db
+    .select()
+    .from(matches)
+    .where(and(...conditions))
+    .orderBy(desc(matches.createdAt));
+}
 
 export const getPartnerUserId = (
   match: typeof matches.$inferSelect,
@@ -104,4 +149,29 @@ export const createMatch = async (
     .returning();
 
   return match;
+};
+
+export const findMatchesByUserId = async (
+  userId: string,
+  communityId: string,
+) => {
+  const members = await getMembersInCommunity(communityId, userId);
+
+  const existingMatches = await getUserMatchesInCommunity(userId, communityId);
+
+  const existingMatchUserIds = new Set(
+    existingMatches.map((m) => getPartnerUserId(m, userId)),
+  );
+
+  const availableMatches = [];
+
+  for (const member of members) {
+    if (existingMatchUserIds.has(member.user.id)) continue;
+
+    availableMatches.push({
+      userId: member.user.id,
+    });
+  }
+
+  return availableMatches;
 };
