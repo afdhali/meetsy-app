@@ -1,27 +1,22 @@
 import { db } from "@/db";
 import { communities, communityMembers, learningGoals } from "@/db/schema";
-import { getOrCreateUserByClerkId } from "@/lib/user-utils";
 import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
+import { authMiddleware } from "./middleware/auth-middleware";
 
 type Variables = {
   userId: string;
 };
 
 const communitiesApp = new Hono<{ Variables: Variables }>()
+  .use("/*", authMiddleware)
   .get("/all", async (c) => {
     const allCommunities = await db.select().from(communities);
     return c.json(allCommunities);
   })
   .get("/", async (c) => {
-    const clerkId = c.get("userId");
-    console.log("clerkId", clerkId);
-    const user = await getOrCreateUserByClerkId(clerkId);
-    console.log("user", user);
-    if (!user) {
-      return c.json([]);
-    }
+    const user = c.get("user");
 
     const userCommunities = await db
       .select({
@@ -38,13 +33,8 @@ const communitiesApp = new Hono<{ Variables: Variables }>()
     return c.json(userCommunities);
   })
   .post("/:communityId/join", async (c) => {
-    const clerkId = c.get("userId");
+    const user = c.get("user");
     const communityId = c.req.param("communityId");
-
-    const user = await getOrCreateUserByClerkId(clerkId);
-    if (!user) {
-      throw new HTTPException(404, { message: "User not found" });
-    }
 
     const [existing] = await db
       .select()
@@ -72,13 +62,8 @@ const communitiesApp = new Hono<{ Variables: Variables }>()
     });
   })
   .get("/:communityId/goals", async (c) => {
-    const clerkId = c.get("userId");
+    const user = c.get("user");
     const communityId = c.req.param("communityId");
-
-    const user = await getOrCreateUserByClerkId(clerkId);
-    if (!user) {
-      throw new HTTPException(404, { message: "User not found" });
-    }
 
     const goals = await db
       .select()
