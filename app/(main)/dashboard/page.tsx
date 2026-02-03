@@ -1,4 +1,5 @@
 "use client";
+import StatsCard from "@/components/dashboard/stats-card";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,7 +16,11 @@ import Link from "next/link";
 
 export default function DashboardPage() {
   const user = useUser();
-  const { data, isLoading, error } = useQuery({
+  const {
+    data: userCommunities,
+    isLoading: isLoadingUserCommunities,
+    error: errorUserCommunities,
+  } = useQuery({
     queryKey: ["communities"],
     queryFn: async () => {
       const res = await client.api.communities.$get();
@@ -26,8 +31,11 @@ export default function DashboardPage() {
     },
   });
 
-  if (isLoading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error.message}</div>;
+  const pendingMatches: number = 6;
+
+  if (isLoadingUserCommunities) return <div>Loading...</div>;
+  if (errorUserCommunities)
+    return <div>Error: {errorUserCommunities.message}</div>;
 
   return (
     <div className="page-wrapper">
@@ -37,6 +45,35 @@ export default function DashboardPage() {
           Welcome back, {user?.user?.firstName || "User"}!
         </p>
       </div>
+
+      <Card className="border-primary">
+        <CardHeader>
+          <CardTitle>
+            🎉 You have {pendingMatches} new{" "}
+            {pendingMatches === 1 ? "match" : "matches"}!
+          </CardTitle>
+          <CardDescription>
+            Review and accept your matches to start chatting
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent>
+          <Link href="/chat">
+            <Button>Review Matches</Button>
+          </Link>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <StatsCard
+          title="Your Communities"
+          value={userCommunities?.length || 0}
+        />
+        <StatsCard title="Learning Goals" value={6} />
+        <StatsCard title="Active Matches" value={6} />
+        <StatsCard title="Pending Matches" value={pendingMatches} />
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -57,8 +94,7 @@ export default function DashboardPage() {
 
           <CardContent></CardContent>
         </Card>
-      </div>
-      <div className="grid gap-6 lg:grid-cols-2">
+
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -78,7 +114,7 @@ export default function DashboardPage() {
 
           <CardContent>
             <div className="space-y-3">
-              {data?.map((community) => (
+              {userCommunities?.map((community) => (
                 <Card className="shadow-none" key={community.id}>
                   <Link href={`/communities/${community.id}`}>
                     <CardHeader>
