@@ -482,4 +482,12 @@
   .hero-gradient-overlay-animated {
     @apply absolute inset-0 bg-linear-to-r from-transparent via-white/10 to-transparent;
   }
+
+  .page-wrapper {
+    @apply space-y-8 py-12;
+  }
+
+  .page-heading {
+    @apply text-3xl font-bold tracking-tight;
+  }
 }
