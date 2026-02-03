@@ -1,9 +1,8 @@
-import { db } from "@/db";
-import { communities } from "@/db/schema";
 import { auth } from "@clerk/nextjs/server";
 import { Hono } from "hono";
 import { handle } from "hono/vercel";
 import { HTTPException } from "hono/http-exception";
+import { communitiesApp } from "@/app/server/community-routes";
 
 type Variables = {
   userId: string;
@@ -54,14 +53,9 @@ app.use("/*", async (c, next) => {
   return await next();
 });
 
-app.get("/communities/all", async (c) => {
-  const allCommunities = await db.select().from(communities);
-  return c.json(allCommunities);
-});
-
-app.post("/communities/:communityId/join", async (c) => {
-  return c.json({ message: "Joined community successfully" });
-});
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const routes = app.route("/communities", communitiesApp);
+export type AppType = typeof routes;
 
 export const GET = handle(app);
 export const POST = handle(app);
