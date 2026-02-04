@@ -5,6 +5,8 @@ import { HTTPException } from "hono/http-exception";
 import { communitiesApp } from "@/app/server/community-routes";
 import { learningGoalsApp } from "@/app/server/learning-goals-routes";
 import { matchesApp } from "@/app/server/matches-routes";
+import { conversationsApp } from "@/app/server/conversations-routes";
+import { usersApp } from "@/app/server/users-routes";
 
 type Variables = {
   userId: string;
@@ -59,7 +61,9 @@ app.use("/*", async (c, next) => {
 const routes = app
   .route("/communities", communitiesApp)
   .route("/communities", learningGoalsApp)
-  .route("/matches", matchesApp);
+  .route("/matches", matchesApp)
+  .route("/conversations", conversationsApp)
+  .route("/users", usersApp);
 
 export type AppType = typeof routes;
 
