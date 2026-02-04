@@ -1,9 +1,6 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
-import { useConversations } from "@/hooks/use-conversations";
 import { cn } from "@/lib/utils";
-import { Button } from "../ui/button";
 import {
   Card,
   CardContent,
@@ -11,24 +8,21 @@ import {
   CardHeader,
   CardTitle,
 } from "../ui/card";
-import { Textarea } from "../ui/textarea";
 import { UserAvatar } from "../ui/user-avatar";
-import { useCurrentUser } from "@/hooks/use-users";
-import { useMatches } from "@/hooks/use-ai-partner";
+import { Textarea } from "../ui/textarea";
+import { Button } from "../ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { client } from "@/lib/api-client";
-import { Message } from "@/types/main-types";
+import { useUser } from "@clerk/nextjs";
 
 export default function ChatInterface({ matchId }: { matchId: string }) {
-  const { data: currentUser } = useCurrentUser();
+  const { user: clerkUser } = useUser();
 
-  // Get the conversation ID from the match
-  // We need to fetch the conversation for this match
-  const { data: conversation, isLoading: isLoadingConversation } = useQuery({
+  //fetch the conversation for the match
+  const { data: conversation } = useQuery({
     queryKey: ["conversation", matchId],
     queryFn: async () => {
-      // Fetch conversation by match ID
-      const res = await client.api.conversations["by-match"][":matchId"].$get({
+      const res = await client.api.matches[":matchId"].conversation.$get({
         param: { matchId },
       });
       if (!res.ok) {
@@ -36,42 +30,38 @@ export default function ChatInterface({ matchId }: { matchId: string }) {
       }
       return res.json();
     },
-    enabled: !!matchId,
   });
 
-  // Fetch messages using the conversation ID
-  const {
-    data: messages = [],
-    isLoading: isLoadingMessages,
-    error: errorMessages,
-  } = useConversations(conversation?.id || "");
+  //fetch the messages for the conversation
+  const { data: messages } = useQuery({
+    queryKey: ["messages", conversation?.id],
+    queryFn: async () => {
+      const res = await client.api.conversations[
+        ":conversationId"
+      ].messages.$get({
+        param: { conversationId: conversation?.id ?? "" },
+      });
+      if (!res.ok) {
+        throw new Error("Failed to fetch messages");
+      }
+      return res.json();
+    },
+    refetchInterval: 5000, // poll every 5 seconds
+  });
 
-  // Fetch all matches to find the match and its conversation
-  const {
-    data: matches,
-    isLoading: isLoadingMatches,
-    error: errorMatches,
-  } = useMatches();
-
-  // Find the specific match
-  const foundMatch = matches?.find((m) => m.id === matchId);
-
-  if (isLoadingMatches || isLoadingConversation) {
+  if (!conversation) {
     return <div>Loading...</div>;
   }
 
-  if (errorMatches) {
-    return <div>Error loading match: {errorMatches.message}</div>;
-  }
-
-  if (!foundMatch) {
-    return <div>Match not found</div>;
-  }
-
   const otherUser = {
-    id: foundMatch.partner.id,
-    name: foundMatch.partner.name,
-    imageUrl: foundMatch.partner.imageUrl ?? undefined,
+    id: conversation.otherUser.id,
+    name: conversation.otherUser.name,
+    imageUrl: conversation.otherUser.imageUrl,
+  };
+
+  const currentUser = {
+    name: (clerkUser?.firstName + " " + clerkUser?.lastName).trim() ?? "You",
+    imageUrl: clerkUser?.imageUrl ?? undefined,
   };
 
   return (
@@ -88,9 +78,12 @@ export default function ChatInterface({ matchId }: { matchId: string }) {
             </div>
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.map((message: Message) => {
-              const isCurrentUser = message.senderId === currentUser?.id;
-              const user = isCurrentUser ? currentUser : otherUser;
+            {messages?.map((message) => {
+              const isCurrentUser =
+                message.senderId === conversation.currentUserId;
+              const user = isCurrentUser
+                ? (currentUser ?? "")
+                : (otherUser ?? "");
               return (
                 <div key={message.id} className="space-y-4">
                   <div
@@ -101,8 +94,8 @@ export default function ChatInterface({ matchId }: { matchId: string }) {
                   >
                     {!isCurrentUser && (
                       <UserAvatar
-                        name={user.name}
-                        imageUrl={user.imageUrl ?? undefined}
+                        name={user?.name ?? "U"}
+                        imageUrl={user?.imageUrl ?? undefined}
                       />
                     )}
                     <div
@@ -122,8 +115,8 @@ export default function ChatInterface({ matchId }: { matchId: string }) {
                     </div>
                     {isCurrentUser && (
                       <UserAvatar
-                        name="John Doe"
-                        imageUrl="https://github.com/shadcn.png"
+                        name={currentUser?.name ?? "You"}
+                        imageUrl={currentUser?.imageUrl ?? undefined}
                       />
                     )}
                   </div>

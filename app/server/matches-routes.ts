@@ -184,6 +184,61 @@ const matchesApp = new Hono<{ Variables: Variables }>()
     });
 
     return c.json(match);
+  })
+  .get("/:matchId/conversation", async (c) => {
+    const matchId = c.req.param("matchId");
+    const user = c.get("user");
+
+    //verify match exists
+    const [match] = await db
+      .select()
+      .from(matches)
+      .where(eq(matches.id, matchId));
+
+    if (!match) {
+      throw new HTTPException(404, { message: "Match not found" });
+    }
+
+    //get the other user's id
+    const otherUserId =
+      match.user1Id === user.id ? match.user2Id : match.user1Id;
+
+    //fetch the other user's details
+    const [otherUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, otherUserId));
+
+    if (!otherUser) {
+      throw new HTTPException(404, { message: "User not found" });
+    }
+
+    //check if conversation exists
+
+    let [conversation] = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.matchId, matchId));
+
+    if (!conversation) {
+      [conversation] = await db
+        .insert(conversations)
+        .values({
+          matchId: matchId,
+        })
+        .returning();
+    }
+
+    return c.json({
+      ...conversation,
+      status: match.status,
+      currentUserId: user.id,
+      otherUser: {
+        id: otherUser.id || otherUserId,
+        name: otherUser.name || "Unknown User",
+        imageUrl: otherUser.imageUrl || null,
+      },
+    });
   });
 
 export { matchesApp };
