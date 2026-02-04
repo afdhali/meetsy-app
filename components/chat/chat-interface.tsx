@@ -11,12 +11,14 @@ import {
 import { UserAvatar } from "../ui/user-avatar";
 import { Textarea } from "../ui/textarea";
 import { Button } from "../ui/button";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { client } from "@/lib/api-client";
 import { useUser } from "@clerk/nextjs";
+import { useState } from "react";
 
 export default function ChatInterface({ matchId }: { matchId: string }) {
   const { user: clerkUser } = useUser();
+  const [message, setMessage] = useState("");
 
   //fetch the conversation for the match
   const { data: conversation } = useQuery({
@@ -47,6 +49,32 @@ export default function ChatInterface({ matchId }: { matchId: string }) {
       return res.json();
     },
     refetchInterval: 5000, // poll every 5 seconds
+  });
+
+  const queryClient = useQueryClient();
+
+  const sendMessageMutation = useMutation({
+    mutationFn: async () => {
+      const res = await client.api.conversations[
+        ":conversationId"
+      ].messages.$post({
+        param: { conversationId: conversation?.id ?? "" },
+        json: { content: message },
+      });
+      if (!res.ok) {
+        throw new Error("Failed to send message");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      setMessage("");
+      queryClient.invalidateQueries({
+        queryKey: ["messages", conversation?.id],
+      });
+    },
+    onError: (error) => {
+      console.error(error);
+    },
   });
 
   if (!conversation) {
@@ -128,8 +156,8 @@ export default function ChatInterface({ matchId }: { matchId: string }) {
             <div className="flex w-full gap-2 items-center">
               <Textarea
                 placeholder="Type your message..."
-                value={""}
-                onChange={() => {}}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
                 className="resize-none"
                 rows={2}
                 onKeyDown={(e) => {
@@ -139,7 +167,7 @@ export default function ChatInterface({ matchId }: { matchId: string }) {
                   }
                 }}
               />
-              <Button>Send</Button>
+              <Button onClick={() => sendMessageMutation.mutate()}>Send</Button>
             </div>
           </CardFooter>
         </Card>
